@@ -1,45 +1,53 @@
----
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
-# image will be published to ghcr.io/<user>/<name>
+---
 name: scrollos
-# description will be included in the image's metadata
-description: This is my personal OS image.
+description: btd987/bazzite-niri (Bazzite + Niri + Noctalia) plus Ghostty, Waterfox, Bottles, Lutris, Steam, and Windscribe.
 
-# the base image to build on top of (FROM) and the version tag to use
-base-image: ghcr.io/ublue-os/silverblue-main
-image-version: latest # You can pin to a specific version of Fedora as well
+# Base image: btd987's published Bazzite + Niri + native Noctalia v5 image,
+# instead of building Niri/Noctalia ourselves. Their image already handles
+# the Niri/Noctalia COPR, session setup, and keeps Bazzite's own kernel/Mesa
+# stack intact. We only layer our extra packages on top of it.
+# https://github.com/btd987/bluefin-niri
+#
+# Use the -nvidia variant instead if you're on Nvidia hardware:
+#   base-image: ghcr.io/btd987/bazzite-niri-nvidia
+base-image: ghcr.io/btd987/bazzite-niri
+image-version: stable
 
-# module configuration, executed in order
-# you can include multiple instances of the same module
 modules:
-  - type: files
-    files:
-      - source: system
-        destination: / # copies files/system/* (* means everything inside it) into your image's root folder /
-
   - type: dnf
     repos:
+      # Waterfox (BrowserWorks) via openSUSE Build Service.
+      # %OS_VERSION% is substituted with the Fedora version at build time.
+      files:
+        - https://download.opensuse.org/repositories/isv:/BrowserWorks/Fedora_%OS_VERSION%/isv:BrowserWorks.repo
+
+      # COPRs — Niri/Noctalia's COPR (lionheartp/Hyprland) is no longer
+      # needed here since the base image already provides them.
       copr:
-        - atim/starship
+        - wehagy/protonplus
+        - vertigo-red/bottles
+        - scottames/ghostty
+
     install:
+      skip-unavailable: true
       packages:
-        - micro
-        - starship
-    remove:
-      packages:
-        # example: removing firefox (in favor of the flatpak)
-        # "firefox" is the main package, "firefox-langpacks" is a dependency
-        - firefox
-        - firefox-langpacks # also remove firefox dependency (not required for all packages, this is a special case)
+        - ghostty
+        - waterfox
+        - bottles
+        - lutris
+        - steam
 
-  - type: default-flatpaks
-    configurations:
-      - notify: true # Send notification after install/uninstall is finished (true/false)
-        scope: system
-        # If no repo information is specified, Flathub will be used by default
-        install: # system flatpaks we want all users to have and not remove
-          - org.mozilla.firefox
-          - org.gnome.Loupe
-      - scope: user # Also add Flathub user repo, but no user packages
+  # Windscribe isn't packaged in a repo/COPR, and the download URL always
+  # points at whatever the current release's rpm is (filename changes every
+  # version), so it's fetched and installed with a script instead of the
+  # dnf module's URL-install feature. See files/scripts/install-windscribe.sh
+  - type: script
+    scripts:
+      - install-windscribe.sh
 
-  - type: signing # this sets up the proper policy & signing files for signed images to work fully
+  # No systemd module needed here: btd987's image already wires up Niri as
+  # a session on top of Bazzite's existing display manager (SDDM/GDM), so
+  # there's nothing to enable/disable for the desktop itself.
+
+  - type: signing
