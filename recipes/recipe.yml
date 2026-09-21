@@ -16,8 +16,10 @@ image-version: stable
 
 modules:
   - type: dnf
-    cleanup: true
     repos:
+      cleanup: true
+      nonfree: rpmfusion
+
       # Waterfox (BrowserWorks) via openSUSE Build Service.
       # %OS_VERSION% is substituted with the Fedora version at build time.
       files:
@@ -29,9 +31,6 @@ modules:
         - wehagy/protonplus
         - vertigo-red/bottles
         - scottames/ghostty
-
-      nonfree: rpmfusion
-
 
     install:
       skip-unavailable: true
