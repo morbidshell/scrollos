@@ -65,13 +65,13 @@ RUN set -euxo pipefail; \
     dnf -y install \
         niri noctalia xwayland-satellite \
         xdg-desktop-portal-gnome xdg-desktop-portal-gtk \
-        greetd greetd-selinux noctalia-greeter-git \
+        greetd kate nautilus adw-gtk3-theme nautilus-python greetd-selinux noctalia-greeter-git \
         steam lutris bottles ghostty waterfox \
         pipewire pipewire-pulseaudio pipewire-alsa wireplumber \
         NetworkManager-wifi bluez power-profiles-daemon upower polkit \
         gnome-keyring gnome-keyring-pam xdg-user-dirs xdg-utils \
         linux-firmware dracut mesa-dri-drivers mesa-vulkan-drivers \
-        google-noto-sans-fonts google-noto-emoji-fonts
+        google-noto-sans-fonts sushi file-roller-nautilus seahorse-nautilus google-noto-emoji-fonts
 
 
 # ── 4. Codecs (RPM Fusion "Multimedia on Fedora") ─────────────────────────────

@@ -26,7 +26,9 @@ jobs:
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
-          sudo podman build --pull=newer -t "${IMAGE}:latest" -f Containerfile .
+          sudo podman build --pull=newer \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            -t "${IMAGE}:latest" -f Containerfile .
 
       - name: Push
         run: |
