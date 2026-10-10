@@ -66,11 +66,11 @@ RUN set -euxo pipefail; \
         niri noctalia xwayland-satellite \
         xdg-desktop-portal-gnome xdg-desktop-portal-gtk \
         greetd kate nautilus adw-gtk3-theme nautilus-python greetd-selinux noctalia-greeter-git \
-        steam lutris bottles ghostty waterfox \
+        steam lutris bottles ghostty nautilus-megasync waterfox \
         pipewire pipewire-pulseaudio pipewire-alsa wireplumber \
         NetworkManager-wifi bluez power-profiles-daemon upower polkit \
         gnome-keyring gnome-keyring-pam xdg-user-dirs xdg-utils \
-        linux-firmware dracut mesa-dri-drivers mesa-vulkan-drivers \
+        linux-firmware peazip-gtk3 adw-gtk3-theme qt5ct qt6cy dracut mesa-dri-drivers mesa-vulkan-drivers \
         google-noto-sans-fonts sushi file-roller-nautilus seahorse-nautilus google-noto-emoji-fonts
 
 
