@@ -26,9 +26,16 @@ jobs:
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
-          sudo podman build --pull=newer \
-            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
-            -t "${IMAGE}:latest" -f Containerfile .
+          # Registry/mirror downloads occasionally drop mid-transfer. Retry; layers
+          # that already finished are cached, so a retry resumes where it failed.
+          for attempt in 1 2 3; do
+            sudo podman build --pull=newer \
+              --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+              -t "${IMAGE}:latest" -f Containerfile . && break
+            [ "${attempt}" -lt 3 ] || exit 1
+            echo "::warning::build attempt ${attempt} failed, retrying in 30s"
+            sleep 30
+          done
 
       - name: Push
         run: |
