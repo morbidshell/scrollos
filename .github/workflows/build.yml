@@ -1,0 +1,36 @@
+name: build-image
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["README.md"]
+  schedule:
+    - cron: "0 6 * * *"   # daily rebuild picks up package + OpenSnitch/Windscribe updates
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # The image (Steam, kernel, codecs) plus dnf caches needs a lot of room.
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - name: Build
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          sudo podman build --pull=newer -t "${IMAGE}:latest" -f Containerfile .
+
+      - name: Push
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          sudo podman tag "${IMAGE}:latest" "${IMAGE}:$(date +%Y%m%d)"
+          sudo podman push "${IMAGE}:latest"
+          sudo podman push "${IMAGE}:$(date +%Y%m%d)"
