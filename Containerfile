@@ -93,6 +93,11 @@ RUN set -euxo pipefail; \
 
 # ── 5. OpenSnitch (GitHub release RPMs: daemon + Qt6 GUI) ─────────────────────
 # "latest" is resolved via the /releases/latest redirect (no API rate limits).
+# The daemon RPM's %post ends with an unconditional `systemctl start`, which can't
+# work during an image build (no running systemd) and makes dnf fail the whole
+# transaction. Its scriptlets only enable/start the unit, so install it with
+# scriptlets off and enable the unit in step 7. The GUI RPM's scriptlet is fine
+# (it adds the XDG autostart entry), so that one installs normally.
 RUN set -euxo pipefail; \
     ver="${OPENSNITCH_VERSION}"; \
     if [ "${ver}" = latest ]; then \
@@ -102,8 +107,10 @@ RUN set -euxo pipefail; \
     base="https://github.com/evilsocket/opensnitch/releases/download/v${ver}"; \
     curl -fsSL -o /tmp/opensnitch.rpm    "${base}/opensnitch-${ver}-1.x86_64.rpm"; \
     curl -fsSL -o /tmp/opensnitch-ui.rpm "${base}/opensnitch-ui-${ver}-1.noarch.rpm"; \
-    dnf -y install /tmp/opensnitch.rpm /tmp/opensnitch-ui.rpm; \
-    rm -f /tmp/opensnitch.rpm /tmp/opensnitch-ui.rpm
+    dnf -y install --setopt=tsflags=noscripts /tmp/opensnitch.rpm; \
+    dnf -y install /tmp/opensnitch-ui.rpm; \
+    rm -f /tmp/opensnitch.rpm /tmp/opensnitch-ui.rpm; \
+    test -e /usr/lib/systemd/system/opensnitch.service
 
 
 # ── 6. Windscribe (GitHub release RPM, signature-checked) ─────────────────────
