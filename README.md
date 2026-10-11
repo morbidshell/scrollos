@@ -1,6 +1,6 @@
 # fedora-niri-bootc
 
-Fedora 44 bootc image: Niri + Noctalia (v5) with the Noctalia greeter, CachyOS LTO kernel,
+Personal Fedora bootc image: Niri + Noctalia (v5) with the Noctalia greeter, CachyOS LTO kernel,
 RPM Fusion + codecs, Steam, Lutris, Bottles, Ghostty, OpenSnitch, Windscribe and Waterfox.
 x86_64 only.
 
