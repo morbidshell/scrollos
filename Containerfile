@@ -28,7 +28,7 @@ RUN set -euxo pipefail; \
         "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm" \
         "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_VERSION}.noarch.rpm"; \
     dnf -y install rpmfusion-free-release-tainted; \
-    for copr in lionheartp/Hyprland vertigo-red/bottles scottames/ghostty bieszczaders/kernel-cachyos-lto; do \
+    for copr in yannmasoch/nautilus-my-computer lionheartp/Hyprland vertigo-red/bottles scottames/ghostty bieszczaders/kernel-cachyos-lto; do \
         dnf -y copr enable "${copr}"; \
     done; \
     curl -fsSL -o "/etc/yum.repos.d/isv:BrowserWorks.repo" \
@@ -63,7 +63,7 @@ RUN set -euxo pipefail; \
 # The rest is the minimum runtime a bare fedora-bootc lacks for a Wayland desktop.
 RUN set -euxo pipefail; \
     dnf -y install \
-        niri noctalia xwayland-satellite \
+        niri noctalia xwayland-satellite nautilus-my-computer \
         xdg-desktop-portal-gnome xdg-desktop-portal-gtk \
         greetd kate nautilus adw-gtk3-theme nautilus-python greetd-selinux noctalia-greeter-git \
         steam lutris bottles ghostty nautilus-megasync waterfox mesa-libGLU.x86_64 mesa-libGLU.i686 \
