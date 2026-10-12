@@ -63,7 +63,7 @@ RUN set -euxo pipefail; \
 # The rest is the minimum runtime a bare fedora-bootc lacks for a Wayland desktop.
 RUN set -euxo pipefail; \
     dnf -y install \
-        niri noctalia xwayland-satellite nautilus-my-computer \
+        niri noctalia xwayland-satellite nautilus-my-computer pavucontrol \
         xdg-desktop-portal-gnome xdg-desktop-portal-gtk \
         greetd kate nautilus adw-gtk3-theme nautilus-python greetd-selinux noctalia-greeter-git \
         steam lutris bottles ghostty nautilus-megasync waterfox mesa-libGLU.x86_64 mesa-libGLU.i686 \
