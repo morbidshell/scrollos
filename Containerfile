@@ -43,11 +43,7 @@ RUN set -euxo pipefail; \
     old="$(rpm -qa --qf '%{NAME}\n' | grep -E '^kernel(-core|-modules|-modules-core|-modules-extra|-modules-internal)?$' | sort -u | tr '\n' ' ')"; \
     if [ -n "${old}" ]; then dnf -y remove --setopt=clean_requirements_on_remove=False ${old}; fi; \
     rm -rf /usr/lib/modules/*; \
-<<<<<<< HEAD
     dnf -y install kernel-cachyos-lto kernel-cachyos-lto-devel-matched; \
-=======
-    dnf -y install @fonts @hardware-support plymouth-system-theme kernel-cachyos-lto kernel-cachyos-lto-devel-matched; \
->>>>>>> 27e67f3a23ebc72284a61144b3454c7bb0a4c294
     [ "$(ls -1 /usr/lib/modules | wc -l)" -eq 1 ] || { echo "expected exactly one kernel in /usr/lib/modules" >&2; ls -l /usr/lib/modules >&2; exit 1; }; \
     test -s "/usr/lib/modules/$(ls -1 /usr/lib/modules)/vmlinuz"
 
@@ -65,19 +61,11 @@ RUN set -euxo pipefail; \
 RUN set -euxo pipefail; \
     dnf -y install \
         --exclude=alacritty,fuzzel,waybar,swaylock,mako,swaybg \
-<<<<<<< HEAD
         niri noctalia xwayland-satellite \
         xdg-desktop-portal-gnome xdg-desktop-portal-gtk \
         greetd greetd-selinux noctalia-greeter-git \
         steam lutris bottles ghostty waterfox mesa-libGLU.x86_64 mesa-libGLU.i686 \
         pipewire pipewire-pulseaudio pipewire-alsa wireplumber \
-=======
-        niri noctalia xwayland-satellite nautilus-my-computer glibc-all-langpacks pavucontrol curl wget \
-        xdg-desktop-portal-gnome xdg-desktop-portal-gtk alsa-sof-firmware alsa-firmware \
-        greetd kate nautilus adw-gtk3-theme nautilus-python greetd-selinux noctalia-greeter-git \
-        steam lutris bottles ghostty nautilus-megasync waterfox mesa-libGLU.x86_64 mesa-libGLU.i686 \
-        pipewire pipewire-pulseaudio distrobox podman pipewire-alsa wireplumber \
->>>>>>> 27e67f3a23ebc72284a61144b3454c7bb0a4c294
         NetworkManager-wifi bluez power-profiles-daemon upower polkit \
         gnome-keyring gnome-keyring-pam xdg-user-dirs xdg-utils \
         linux-firmware alsa-firmware alsa-sof-firmware dracut mesa-dri-drivers mesa-vulkan-drivers
