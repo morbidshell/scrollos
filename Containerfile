@@ -43,7 +43,7 @@ RUN set -euxo pipefail; \
     old="$(rpm -qa --qf '%{NAME}\n' | grep -E '^kernel(-core|-modules|-modules-core|-modules-extra|-modules-internal)?$' | sort -u | tr '\n' ' ')"; \
     if [ -n "${old}" ]; then dnf -y remove --setopt=clean_requirements_on_remove=False ${old}; fi; \
     rm -rf /usr/lib/modules/*; \
-    dnf -y install kernel-cachyos-lto kernel-cachyos-lto-devel-matched; \
+    dnf -y install plymouth-system-theme kernel-cachyos-lto kernel-cachyos-lto-devel-matched; \
     [ "$(ls -1 /usr/lib/modules | wc -l)" -eq 1 ] || { echo "expected exactly one kernel in /usr/lib/modules" >&2; ls -l /usr/lib/modules >&2; exit 1; }; \
     kver="$(ls -1 /usr/lib/modules)"; \
     test -s "/usr/lib/modules/${kver}/vmlinuz"; \
@@ -64,7 +64,7 @@ RUN set -euxo pipefail; \
 RUN set -euxo pipefail; \
     dnf -y install \
         --exclude=alacritty,fuzzel,waybar,swaylock,mako,swaybg \
-        niri noctalia xwayland-satellite nautilus-my-computer pavucontrol plymouth-system-theme \
+        niri noctalia xwayland-satellite nautilus-my-computer pavucontrol \
         xdg-desktop-portal-gnome xdg-desktop-portal-gtk alsa-sof-firmware alsa-firmware \
         greetd kate nautilus adw-gtk3-theme nautilus-python greetd-selinux noctalia-greeter-git \
         steam lutris bottles ghostty nautilus-megasync waterfox mesa-libGLU.x86_64 mesa-libGLU.i686 \
