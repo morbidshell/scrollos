@@ -25,14 +25,14 @@ sudo podman build --pull=newer -t fedora-niri-bootc .
 ```
 
 Or push this repo to GitHub: `.github/workflows/build.yml` builds on every push and daily,
-and publishes to `ghcr.io/<you>/<repo>:latest`.
+and publishes to `ghcr.io/morbidshell/scrollos:latest`.
 
 ## Install
 
 From an existing Fedora bootc / Atomic system:
 
 ```
-sudo bootc switch ghcr.io/<you>/<repo>:latest && sudo systemctl reboot
+sudo bootc switch ghcr.io/morbishell/scrollos:latest && sudo systemctl reboot
 ```
 
 For a fresh install, make a disk image or ISO with `bootc-image-builder` and a `config.toml`
