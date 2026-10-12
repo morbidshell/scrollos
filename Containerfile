@@ -64,7 +64,7 @@ RUN set -euxo pipefail; \
 RUN set -euxo pipefail; \
     dnf -y install \
         --exclude=alacritty,fuzzel,waybar,swaylock,mako,swaybg \
-        niri noctalia xwayland-satellite nautilus-my-computer glibc-all-langpacks pavucontrol \
+        niri noctalia xwayland-satellite nautilus-my-computer glibc-all-langpacks pavucontrol curl wget \
         xdg-desktop-portal-gnome xdg-desktop-portal-gtk alsa-sof-firmware alsa-firmware \
         greetd kate nautilus adw-gtk3-theme nautilus-python greetd-selinux noctalia-greeter-git \
         steam lutris bottles ghostty nautilus-megasync waterfox mesa-libGLU.x86_64 mesa-libGLU.i686 \
