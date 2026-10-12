@@ -67,7 +67,7 @@ RUN set -euxo pipefail; \
         xdg-desktop-portal-gnome xdg-desktop-portal-gtk \
         greetd kate nautilus adw-gtk3-theme nautilus-python greetd-selinux noctalia-greeter-git \
         steam lutris bottles ghostty nautilus-megasync waterfox mesa-libGLU.x86_64 mesa-libGLU.i686 \
-        pipewire pipewire-pulseaudio pipewire-alsa wireplumber \
+        pipewire pipewire-pulseaudio distrobox podman pipewire-alsa wireplumber \
         NetworkManager-wifi bluez power-profiles-daemon upower polkit \
         gnome-keyring gnome-keyring-pam xdg-user-dirs xdg-utils \
         linux-firmware peazip-gtk3 adw-gtk3-theme qt5ct qt6ct dracut mesa-dri-drivers  mesa-vulkan-drivers \
