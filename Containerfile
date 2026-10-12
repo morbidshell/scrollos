@@ -70,7 +70,7 @@ RUN set -euxo pipefail; \
         steam lutris bottles ghostty nautilus-megasync waterfox mesa-libGLU.x86_64 mesa-libGLU.i686 \
         pipewire pipewire-pulseaudio distrobox podman pipewire-alsa wireplumber \
         NetworkManager-wifi bluez power-profiles-daemon upower polkit \
-        gnome-keyring gnome-keyring-pam xdg-user-dirs xdg-utils alsa-utils \
+        gnome-keyring gnome-keyring-pam xdg-user-dirs xdg-utils flatpak alsa-utils \
         linux-firmware peazip-gtk3 adw-gtk3-theme qt5ct qt6ct dracut mesa-dri-drivers  mesa-vulkan-drivers \
         google-noto-sans-fonts sushi file-roller-nautilus seahorse-nautilus google-noto-emoji-fonts
 
