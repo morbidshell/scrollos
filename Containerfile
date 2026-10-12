@@ -36,23 +36,19 @@ RUN set -euxo pipefail; \
 
 
 # ── 2. Kernel: swap Fedora's kernel for CachyOS LTO ───────────────────────────
-# bootc wants exactly one kernel in /usr/lib/modules/<kver>/ with an initramfs.img
-# next to vmlinuz, so: remove the stock kernel, install CachyOS, rebuild the
-# initramfs explicitly (dracut invocation as per the Fedora bootc docs).
+# bootc wants exactly one kernel in /usr/lib/modules/<kver>/. Remove the stock kernel
+# and install CachyOS here. The initramfs is rebuilt in step 8, after every other
+# package (firmware, plymouth, ...) is installed, so it can include them.
 RUN set -euxo pipefail; \
     old="$(rpm -qa --qf '%{NAME}\n' | grep -E '^kernel(-core|-modules|-modules-core|-modules-extra|-modules-internal)?$' | sort -u | tr '\n' ' ')"; \
     if [ -n "${old}" ]; then dnf -y remove --setopt=clean_requirements_on_remove=False ${old}; fi; \
     rm -rf /usr/lib/modules/*; \
-    dnf -y install plymouth-system-theme kernel-cachyos-lto kernel-cachyos-lto-devel-matched; \
+    dnf -y install kernel-cachyos-lto kernel-cachyos-lto-devel-matched; \
     [ "$(ls -1 /usr/lib/modules | wc -l)" -eq 1 ] || { echo "expected exactly one kernel in /usr/lib/modules" >&2; ls -l /usr/lib/modules >&2; exit 1; }; \
-    kver="$(ls -1 /usr/lib/modules)"; \
-    test -s "/usr/lib/modules/${kver}/vmlinuz"; \
-    depmod -a "${kver}"; \
-    env DRACUT_NO_XATTR=1 dracut -vf --no-hostonly --reproducible "/usr/lib/modules/${kver}/initramfs.img" "${kver}"; \
-    test -s "/usr/lib/modules/${kver}/initramfs.img"
+    test -s "/usr/lib/modules/$(ls -1 /usr/lib/modules)/vmlinuz"
 
 
-# ── 3. Desktop + apps ─────────────────────────────────────────────────────────
+# ── 3a. Desktop core + apps (big, rarely changes) ─────────────────────────────
 # niri / noctalia           Fedora repos (Noctalia v5)
 # noctalia-greeter-git      COPR lionheartp/Hyprland (+ greetd, configured below)
 # steam                     RPM Fusion nonfree
@@ -61,18 +57,32 @@ RUN set -euxo pipefail; \
 # ghostty                   COPR scottames/ghostty
 # waterfox                  isv:BrowserWorks repo
 # The rest is the minimum runtime a bare fedora-bootc lacks for a Wayland desktop.
+# Keep this list stable: editing it re-runs everything below, including the 4+ GiB download.
 RUN set -euxo pipefail; \
     dnf -y install \
         --exclude=alacritty,fuzzel,waybar,swaylock,mako,swaybg \
-        niri noctalia xwayland-satellite nautilus-my-computer pavucontrol \
-        xdg-desktop-portal-gnome xdg-desktop-portal-gtk alsa-sof-firmware alsa-firmware \
-        greetd kate nautilus adw-gtk3-theme nautilus-python greetd-selinux noctalia-greeter-git \
-        steam lutris bottles ghostty nautilus-megasync waterfox mesa-libGLU.x86_64 mesa-libGLU.i686 \
-        pipewire pipewire-pulseaudio distrobox podman pipewire-alsa wireplumber \
+        niri noctalia xwayland-satellite \
+        xdg-desktop-portal-gnome xdg-desktop-portal-gtk \
+        greetd greetd-selinux noctalia-greeter-git \
+        steam lutris bottles ghostty waterfox mesa-libGLU.x86_64 mesa-libGLU.i686 \
+        pipewire pipewire-pulseaudio pipewire-alsa wireplumber \
         NetworkManager-wifi bluez power-profiles-daemon upower polkit \
-        gnome-keyring gnome-keyring-pam xdg-user-dirs xdg-utils flatpak alsa-utils \
-        linux-firmware peazip-gtk3 adw-gtk3-theme qt5ct qt6ct dracut mesa-dri-drivers  mesa-vulkan-drivers \
-        google-noto-sans-fonts sushi file-roller-nautilus seahorse-nautilus google-noto-emoji-fonts
+        gnome-keyring gnome-keyring-pam xdg-user-dirs xdg-utils \
+        linux-firmware alsa-firmware alsa-sof-firmware dracut mesa-dri-drivers mesa-vulkan-drivers
+
+
+# ── 3b. Extras (the list you tweak often; keep it last among the package steps) ─
+# Changes here only re-run this step and the ones after it.
+# plymouth-system-theme: plymouth ends up in the initramfs because step 8 runs last.
+RUN set -euxo pipefail; \
+    dnf -y install \
+        --exclude=alacritty,fuzzel,waybar,swaylock,mako,swaybg \
+        @fonts @hardware-support plymouth-system-theme \
+        glibc-all-langpacks google-noto-sans-fonts google-noto-emoji-fonts \
+        nautilus nautilus-python nautilus-my-computer nautilus-megasync \
+        sushi file-roller-nautilus seahorse-nautilus \
+        adw-gtk3-theme qt5ct qt6ct kate peazip-gtk3 pavucontrol alsa-utils \
+        distrobox podman flatpak wget
 
 
 # ── 4. Codecs (RPM Fusion "Multimedia on Fedora") ─────────────────────────────
@@ -159,7 +169,19 @@ RUN set -euxo pipefail; \
     systemctl set-default graphical.target
 
 
-# ── 8. Clean up + lint ────────────────────────────────────────────────────────
+# ── 8. Initramfs ──────────────────────────────────────────────────────────────
+# Built last so it sees everything installed above (GPU/sound firmware, plymouth, any
+# dracut modules). dracut invocation as per the Fedora bootc docs.
+RUN set -euxo pipefail; \
+    [ "$(ls -1 /usr/lib/modules | wc -l)" -eq 1 ] || { echo "expected exactly one kernel in /usr/lib/modules" >&2; ls -l /usr/lib/modules >&2; exit 1; }; \
+    kver="$(ls -1 /usr/lib/modules)"; \
+    test -s "/usr/lib/modules/${kver}/vmlinuz"; \
+    depmod -a "${kver}"; \
+    env DRACUT_NO_XATTR=1 dracut -vf --no-hostonly --reproducible "/usr/lib/modules/${kver}/initramfs.img" "${kver}"; \
+    test -s "/usr/lib/modules/${kver}/initramfs.img"
+
+
+# ── 9. Clean up + lint ────────────────────────────────────────────────────────
 RUN set -euxo pipefail; \
     dnf clean all; \
     rm -rf /var/cache/* /var/log/* /tmp/*; \
