@@ -6,6 +6,7 @@ on:
     paths-ignore: ["README.md"]
   schedule:
     - cron: "0 4,16 * * *"   # daily rebuild picks up package + OpenSnitch/Windscribe updates
+      timezone: "Europe/Copenhagen"
   workflow_dispatch:
 
 permissions:
