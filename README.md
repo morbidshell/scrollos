@@ -1,8 +1,8 @@
 # fedora-niri-bootc
-
+Warning: Built with heavy AI help.
 Personal Fedora bootc image: Niri + Noctalia (v5) with the Noctalia greeter, CachyOS LTO kernel,
 RPM Fusion + codecs, Steam, Lutris, Bottles, Ghostty, OpenSnitch, Windscribe and Waterfox.
-x86_64 only. Built with heavy AI help.
+x86_64 only. 
 
 ## What comes from where
 
