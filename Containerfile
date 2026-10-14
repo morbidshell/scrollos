@@ -156,17 +156,21 @@ RUN set -euxo pipefail; \
 
 # ── 7. Image config ───────────────────────────────────────────────────────────
 # files/ ships: greetd -> noctalia-greeter, a default /etc/niri/config.kdl that
-# starts Noctalia, and the SELinux label for the greeter's state dir.
+# starts Noctalia, the SELinux label for the greeter's state dir, and a first-boot
+# service that adds Flathub. The flatpak RPM's own first-boot service that adds the
+# Fedora remote (flatpak-add-fedora-repos.service) is masked below.
 COPY files/ /
-
+ 
 RUN set -euxo pipefail; \
     niri validate -c /etc/niri/config.kdl; \
-    systemctl enable greetd.service NetworkManager.service bluetooth.service power-profiles-daemon.service opensnitch.service; \
+    systemctl enable greetd.service NetworkManager.service bluetooth.service power-profiles-daemon.service opensnitch.service flatpak-add-flathub.service; \
+    systemctl mask flatpak-add-fedora-repos.service; \
     units="$(rpm -ql windscribe | grep -E '/systemd/system/[^/]+\.service$' | xargs -r -n1 basename)"; \
     [ -n "${units}" ] || { echo "no systemd unit found in the windscribe package" >&2; exit 1; }; \
     for unit in ${units}; do systemctl enable "${unit}"; done; \
     systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service; \
     systemctl set-default graphical.target
+
 
 
 # ── 8. Initramfs ──────────────────────────────────────────────────────────────
