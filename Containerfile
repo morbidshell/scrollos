@@ -171,8 +171,7 @@ RUN set -euxo pipefail; \
     systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service; \
     systemctl set-default graphical.target
 
-
-
+    
 # ── 8. Initramfs ──────────────────────────────────────────────────────────────
 # Built last so it sees everything installed above (GPU/sound firmware, plymouth, any
 # dracut modules). dracut invocation as per the Fedora bootc docs.
