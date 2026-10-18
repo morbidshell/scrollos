@@ -145,5 +145,4 @@ RUN set -euxo pipefail; \
     rm -rf /var/cache/* /var/log/* /tmp/*; \
     find /boot -mindepth 1 -delete; \
     dnf clean all; \
-
     bootc container lint
