@@ -1,10 +1,11 @@
-# Fedora bootc  +  Niri  +  Noctalia
-# CachyOS (LTO) kernel, RPM Fusion codecs, Steam/Lutris/Bottles/Ghostty,
-# OpenSnitch, Windscribe, Waterfox.   x86_64 only.
+# Fedora bootc + Niri + Noctalia, CachyOS LTO kernel, RPM Fusion codecs, gaming
+# apps, OpenSnitch, Windscribe, Waterfox.  x86_64 only.
 #
 #   sudo podman build -t fedora-niri-bootc .
+#   (pin external downloads: --build-arg OPENSNITCH_VERSION=1.8.0 --build-arg WINDSCRIBE_VERSION=...)
 #
-# Pin external downloads with e.g.  --build-arg OPENSNITCH_VERSION=1.8.0
+# Steps are ordered by how often they change. Editing one re-runs it and everything
+# after it. Every dnf step ends in `dnf clean all` so its cache never lands in a layer.
 
 ARG FEDORA_VERSION=44
 FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
@@ -12,19 +13,16 @@ FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 ARG FEDORA_VERSION
 ARG OPENSNITCH_VERSION=latest
 ARG WINDSCRIBE_VERSION=latest
-
-# Fail early on the wrong arch / base release.
-RUN set -eu; \
-    [ "$(uname -m)" = x86_64 ] || { echo "x86_64 only (CachyOS kernel, OpenSnitch and Windscribe RPMs)" >&2; exit 1; }; \
-    [ "$(rpm -E %fedora)" = "${FEDORA_VERSION}" ] || { echo "FEDORA_VERSION does not match the base image" >&2; exit 1; }
+# niri recommends a starter kit that Noctalia and Ghostty replace (mako would also
+# compete with Noctalia for notifications). Excluded weak deps are skipped silently.
+ARG UNWANTED=alacritty,fuzzel,waybar,swaylock,mako,swaybg
 
 
-# ── 1. Repositories ───────────────────────────────────────────────────────────
-# RPM Fusion (free, nonfree, free-tainted for libdvdcss), the four COPRs, and
-# the official Waterfox repo (isv:BrowserWorks, built on the openSUSE OBS).
+# 1. Repositories: RPM Fusion (+ tainted for libdvdcss), COPRs, Waterfox.
 RUN set -euxo pipefail; \
-    dnf -y install dnf5-plugins; \
-    dnf -y install \
+    [ "$(uname -m)" = x86_64 ] || { echo "x86_64 only" >&2; exit 1; }; \
+    [ "$(rpm -E %fedora)" = "${FEDORA_VERSION}" ] || { echo "FEDORA_VERSION does not match the base image" >&2; exit 1; }; \
+    dnf -y install dnf5-plugins \
         "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm" \
         "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_VERSION}.noarch.rpm"; \
     dnf -y install rpmfusion-free-release-tainted; \
@@ -32,35 +30,25 @@ RUN set -euxo pipefail; \
         dnf -y copr enable "${copr}"; \
     done; \
     curl -fsSL -o "/etc/yum.repos.d/isv:BrowserWorks.repo" \
-        "https://download.opensuse.org/repositories/isv:/BrowserWorks/Fedora_${FEDORA_VERSION}/isv:BrowserWorks.repo"
+        "https://download.opensuse.org/repositories/isv:/BrowserWorks/Fedora_${FEDORA_VERSION}/isv:BrowserWorks.repo"; \
+    dnf clean all
 
 
-# ── 2. Kernel: swap Fedora's kernel for CachyOS LTO ───────────────────────────
-# bootc wants exactly one kernel in /usr/lib/modules/<kver>/. Remove the stock kernel
-# and install CachyOS here. The initramfs is rebuilt in step 8, after every other
-# package (firmware, plymouth, ...) is installed, so it can include them.
+# 2. Kernel: replace Fedora's with CachyOS LTO (bootc wants exactly one kernel).
+#    The initramfs is rebuilt in step 7, once everything else is installed.
 RUN set -euxo pipefail; \
     old="$(rpm -qa --qf '%{NAME}\n' | grep -E '^kernel(-core|-modules|-modules-core|-modules-extra|-modules-internal)?$' | sort -u | tr '\n' ' ')"; \
     if [ -n "${old}" ]; then dnf -y remove --setopt=clean_requirements_on_remove=False ${old}; fi; \
     rm -rf /usr/lib/modules/*; \
     dnf -y install kernel-cachyos-lto kernel-cachyos-lto-devel-matched; \
-    [ "$(ls -1 /usr/lib/modules | wc -l)" -eq 1 ] || { echo "expected exactly one kernel in /usr/lib/modules" >&2; ls -l /usr/lib/modules >&2; exit 1; }; \
-    test -s "/usr/lib/modules/$(ls -1 /usr/lib/modules)/vmlinuz"
+    [ "$(ls /usr/lib/modules | wc -l)" -eq 1 ] || { ls -l /usr/lib/modules >&2; echo "expected exactly one kernel" >&2; exit 1; }; \
+    test -s "/usr/lib/modules/$(ls /usr/lib/modules)/vmlinuz"; \
+    dnf clean all
 
 
-# ── 3a. Desktop core + apps (big, rarely changes) ─────────────────────────────
-# niri / noctalia           Fedora repos (Noctalia v5)
-# noctalia-greeter-git      COPR lionheartp/Hyprland (+ greetd, configured below)
-# steam                     RPM Fusion nonfree
-# lutris                    Fedora
-# bottles                   COPR vertigo-red/bottles
-# ghostty                   COPR scottames/ghostty
-# waterfox                  isv:BrowserWorks repo
-# The rest is the minimum runtime a bare fedora-bootc lacks for a Wayland desktop.
-# Keep this list stable: editing it re-runs everything below, including the 4+ GiB download.
+# 3. Desktop core + apps (big, keep this list stable; it holds most of the download).
 RUN set -euxo pipefail; \
-    dnf -y install \
-        --exclude=alacritty,fuzzel,waybar,swaylock,mako,swaybg \
+    dnf -y install --exclude="${UNWANTED}" \
         niri noctalia xwayland-satellite \
         xdg-desktop-portal-gnome xdg-desktop-portal-gtk \
         greetd greetd-selinux noctalia-greeter-git \
@@ -68,126 +56,94 @@ RUN set -euxo pipefail; \
         pipewire pipewire-pulseaudio pipewire-alsa wireplumber \
         NetworkManager-wifi bluez power-profiles-daemon upower polkit \
         gnome-keyring gnome-keyring-pam xdg-user-dirs xdg-utils \
-        linux-firmware alsa-firmware alsa-sof-firmware dracut mesa-dri-drivers mesa-vulkan-drivers
+        linux-firmware alsa-firmware alsa-sof-firmware dracut mesa-dri-drivers mesa-vulkan-drivers; \
+    dnf clean all
 
 
-# ── 3b. Extras (the list you tweak often; keep it last among the package steps) ─
-# Changes here only re-run this step and the ones after it.
-# plymouth-system-theme: plymouth ends up in the initramfs because step 8 runs last.
+# 4. Extras (the list you tweak often).
 RUN set -euxo pipefail; \
-    dnf -y install \
-        --exclude=alacritty,fuzzel,waybar,swaylock,mako,swaybg \
+    dnf -y install --exclude="${UNWANTED}" \
         @fonts @hardware-support plymouth-system-theme \
         glibc-all-langpacks google-noto-sans-fonts google-noto-emoji-fonts \
         nautilus nautilus-python nautilus-my-computer nautilus-megasync \
         sushi file-roller-nautilus seahorse-nautilus \
         adw-gtk3-theme qt5ct qt6ct kate peazip-gtk3 pavucontrol alsa-utils \
-        distrobox podman flatpak wget
+        distrobox podman flatpak wget; \
+    dnf clean all
 
 
-# ── 4. Codecs (RPM Fusion "Multimedia on Fedora") ─────────────────────────────
-# Run after the apps so any ffmpeg-free libs they pulled in get replaced.
-#  - full ffmpeg instead of ffmpeg-free (same result as `dnf swap ffmpeg-free ffmpeg
-#    --allowerasing`, but doesn't fail if ffmpeg-free isn't installed)
-#  - @multimedia (gstreamer) and sound-and-video groups, as in the howto
-#  - hardware video decode: AMD (mesa freeworld), Intel, NVIDIA
-#  - libdvdcss from rpmfusion-free-tainted
+# 5. Codecs (RPM Fusion "Multimedia on Fedora"). After the apps, so any ffmpeg-free
+#    libs they pulled in get replaced by the full ffmpeg.
 RUN set -euxo pipefail; \
     dnf -y install --allowerasing ffmpeg; \
     dnf -y install @multimedia --setopt="install_weak_deps=False" --exclude=PackageKit-gstreamer-plugin; \
     dnf -y group install sound-and-video; \
     dnf -y install --allowerasing mesa-va-drivers-freeworld.i686 mesa-va-drivers-freeworld intel-media-driver libva-nvidia-driver libva-utils; \
     dnf -y install libdvdcss; \
-    rpm -q ffmpeg ffmpeg-libs mesa-va-drivers-freeworld libdvdcss; \
-    if rpm -q ffmpeg-free >/dev/null 2>&1; then echo "ffmpeg-free is still installed" >&2; exit 1; fi
+    if rpm -q ffmpeg-free >/dev/null 2>&1; then echo "ffmpeg-free is still installed" >&2; exit 1; fi; \
+    dnf clean all
 
 
-# ── 5. OpenSnitch (GitHub release RPMs: daemon + Qt6 GUI) ─────────────────────
-# "latest" is resolved via the /releases/latest redirect (no API rate limits).
-# The daemon RPM's %post ends with an unconditional `systemctl start`, which can't
-# work during an image build (no running systemd) and makes dnf fail the whole
-# transaction. Its scriptlets only enable/start the unit, so install it with
-# scriptlets off and enable the unit in step 7. The GUI RPM's scriptlet is fine
-# (it adds the XDG autostart entry), so that one installs normally.
+# 6. OpenSnitch + Windscribe (GitHub release RPMs). "latest" is resolved through the
+#    /releases/latest redirect, which has no API rate limit.
+#    - The OpenSnitch daemon RPM's %post runs `systemctl start`, which fails during an
+#      image build and aborts the whole transaction. It only enables/starts the unit,
+#      so it is installed with scriptlets off and enabled in step 8.
+#    - Windscribe installs into /opt, which on Fedora bootc is a symlink to /var/opt
+#      (not carried across image updates). Anything landing there is moved to
+#      /usr/lib/opt and linked back at boot via tmpfiles.d.
+#    - The Windscribe RPM's signature is verified against Windscribe's published key.
 RUN set -euxo pipefail; \
-    ver="${OPENSNITCH_VERSION}"; \
-    if [ "${ver}" = latest ]; then \
-        tag="$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/evilsocket/opensnitch/releases/latest)"; \
-        ver="${tag##*/v}"; \
-    fi; \
-    base="https://github.com/evilsocket/opensnitch/releases/download/v${ver}"; \
-    curl -fsSL -o /tmp/opensnitch.rpm    "${base}/opensnitch-${ver}-1.x86_64.rpm"; \
-    curl -fsSL -o /tmp/opensnitch-ui.rpm "${base}/opensnitch-ui-${ver}-1.noarch.rpm"; \
-    dnf -y install --setopt=tsflags=noscripts /tmp/opensnitch.rpm; \
-    dnf -y install /tmp/opensnitch-ui.rpm; \
-    rm -f /tmp/opensnitch.rpm /tmp/opensnitch-ui.rpm; \
-    test -e /usr/lib/systemd/system/opensnitch.service
-
-
-# ── 6. Windscribe (GitHub release RPM, signature-checked) ─────────────────────
-# The RPM installs to /opt/windscribe. On Fedora bootc images /opt is a symlink to
-# /var/opt, and /var is not carried across image updates, so the payload is moved
-# to /usr/lib/opt and linked back at boot with tmpfiles.d.
-RUN set -euxo pipefail; \
-    ver="${WINDSCRIBE_VERSION}"; \
-    if [ "${ver}" = latest ]; then \
-        tag="$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/Windscribe/Desktop-App/releases/latest)"; \
-        ver="${tag##*/v}"; \
-    fi; \
-    pkg="windscribe_${ver}_amd64_fedora.rpm"; \
-    curl -fsSL -o "/tmp/${pkg}" "https://github.com/Windscribe/Desktop-App/releases/download/v${ver}/${pkg}"; \
-    curl -fsSL -o /tmp/windscribe.pub https://windscribe.com/windscribe_linux_signing_key.pub; \
-    rpm --import /tmp/windscribe.pub; \
-    rpmkeys --checksig "/tmp/${pkg}" | tee /dev/stderr | grep -q 'signatures OK'; \
-    if [ -L /opt ]; then mkdir -p /var/opt; fi; \
-    dnf -y install "/tmp/${pkg}"; \
-    rm -f "/tmp/${pkg}" /tmp/windscribe.pub; \
+    latest() { local t; t="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$1/releases/latest")"; echo "${t##*/v}"; }; \
+    os="${OPENSNITCH_VERSION}"; [ "${os}" != latest ] || os="$(latest evilsocket/opensnitch)"; \
+    ws="${WINDSCRIBE_VERSION}"; [ "${ws}" != latest ] || ws="$(latest Windscribe/Desktop-App)"; \
+    cd /tmp; \
+    curl -fsSL --fail-early \
+        -O "https://github.com/evilsocket/opensnitch/releases/download/v${os}/opensnitch-${os}-1.x86_64.rpm" \
+        -O "https://github.com/evilsocket/opensnitch/releases/download/v${os}/opensnitch-ui-${os}-1.noarch.rpm" \
+        -O "https://github.com/Windscribe/Desktop-App/releases/download/v${ws}/windscribe_${ws}_amd64_fedora.rpm" \
+        -O "https://windscribe.com/windscribe_linux_signing_key.pub"; \
+    rpm --import windscribe_linux_signing_key.pub; \
+    rpmkeys --checksig "windscribe_${ws}_amd64_fedora.rpm" | tee /dev/stderr | grep -q 'signatures OK'; \
+    [ ! -L /opt ] || mkdir -p /var/opt; \
+    dnf -y install --setopt=tsflags=noscripts "/tmp/opensnitch-${os}-1.x86_64.rpm"; \
+    dnf -y install "/tmp/opensnitch-ui-${os}-1.noarch.rpm" "/tmp/windscribe_${ws}_amd64_fedora.rpm"; \
     if [ -L /opt ]; then \
         mkdir -p /usr/lib/opt; \
         for d in /var/opt/*; do \
             [ -e "${d}" ] || continue; \
-            n="${d##*/}"; \
-            mv "${d}" "/usr/lib/opt/${n}"; \
-            printf 'L+ /var/opt/%s - - - - /usr/lib/opt/%s\n' "${n}" "${n}" > "/usr/lib/tmpfiles.d/opt-${n}.conf"; \
+            mv "${d}" /usr/lib/opt/; \
+            echo "L+ /var/opt/${d##*/} - - - - /usr/lib/opt/${d##*/}" > "/usr/lib/tmpfiles.d/opt-${d##*/}.conf"; \
         done; \
     fi; \
-    test -e /opt/windscribe || test -e /usr/lib/opt/windscribe
+    test -e /usr/lib/opt/windscribe || test -e /opt/windscribe; \
+    rm -f /tmp/*.rpm /tmp/*.pub; \
+    dnf clean all
 
 
-# ── 7. Image config ───────────────────────────────────────────────────────────
-# files/ ships: greetd -> noctalia-greeter, a default /etc/niri/config.kdl that
-# starts Noctalia, the SELinux label for the greeter's state dir, and a first-boot
-# service that adds Flathub. The flatpak RPM's own first-boot service that adds the
-# Fedora remote (flatpak-add-fedora-repos.service) is masked below.
-COPY files/ /
- 
+# 7. Initramfs, built after every package is installed so it includes GPU/sound
+#    firmware, plymouth and any dracut modules. Before COPY so config edits skip it.
 RUN set -euxo pipefail; \
-    niri validate -c /etc/niri/config.kdl; \
-    systemctl enable greetd.service NetworkManager.service bluetooth.service power-profiles-daemon.service opensnitch.service flatpak-add-flathub.service; \
-    systemctl mask flatpak-add-fedora-repos.service; \
-    units="$(rpm -ql windscribe | grep -E '/systemd/system/[^/]+\.service$' | xargs -r -n1 basename)"; \
-    [ -n "${units}" ] || { echo "no systemd unit found in the windscribe package" >&2; exit 1; }; \
-    for unit in ${units}; do systemctl enable "${unit}"; done; \
-    systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service; \
-    systemctl set-default graphical.target
-
-    
-# ── 8. Initramfs ──────────────────────────────────────────────────────────────
-# Built last so it sees everything installed above (GPU/sound firmware, plymouth, any
-# dracut modules). dracut invocation as per the Fedora bootc docs.
-RUN set -euxo pipefail; \
-    [ "$(ls -1 /usr/lib/modules | wc -l)" -eq 1 ] || { echo "expected exactly one kernel in /usr/lib/modules" >&2; ls -l /usr/lib/modules >&2; exit 1; }; \
-    kver="$(ls -1 /usr/lib/modules)"; \
-    test -s "/usr/lib/modules/${kver}/vmlinuz"; \
+    [ "$(ls /usr/lib/modules | wc -l)" -eq 1 ] || { ls -l /usr/lib/modules >&2; echo "expected exactly one kernel" >&2; exit 1; }; \
+    kver="$(ls /usr/lib/modules)"; \
     depmod -a "${kver}"; \
     env DRACUT_NO_XATTR=1 dracut -vf --no-hostonly --reproducible "/usr/lib/modules/${kver}/initramfs.img" "${kver}"; \
     test -s "/usr/lib/modules/${kver}/initramfs.img"
 
 
-# ── 9. Clean up + lint ────────────────────────────────────────────────────────
-RUN set -euxo pipefail; \
-    dnf clean all; \
-    rm -rf /var/cache/* /var/log/* /tmp/*; \
-    find /boot -mindepth 1 -delete
+# 8. Image config from files/ (greetd -> noctalia-greeter, /etc/niri/config.kdl, the
+#    greeter's SELinux label, the Flathub first-boot unit), services, cleanup, lint.
+#    flatpak-add-fedora-repos.service (Fedora's own remote) is masked in favour of Flathub.
+COPY files/ /
 
-RUN bootc container lint
+RUN set -euxo pipefail; \
+    niri validate -c /etc/niri/config.kdl; \
+    systemctl enable greetd NetworkManager bluetooth power-profiles-daemon opensnitch windscribe-helper flatpak-add-flathub; \
+    systemctl mask flatpak-add-fedora-repos.service; \
+    systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service; \
+    systemctl set-default graphical.target; \
+    rm -rf /var/cache/* /var/log/* /tmp/*; \
+    find /boot -mindepth 1 -delete; \
+    dnf clean all; \
+
+    bootc container lint
