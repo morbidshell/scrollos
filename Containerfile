@@ -7,7 +7,7 @@
 # Steps are ordered by how often they change. Editing one re-runs it and everything
 # after it. Every dnf step ends in `dnf clean all` so its cache never lands in a layer.
 
-ARG FEDORA_VERSION=45
+ARG FEDORA_VERSION=44
 FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 
 ARG FEDORA_VERSION
