@@ -7,7 +7,7 @@
 # Steps are ordered by how often they change. Editing one re-runs it and everything
 # after it. Every dnf step ends in `dnf clean all` so its cache never lands in a layer.
 
-ARG FEDORA_VERSION=44
+ARG FEDORA_VERSION=45
 FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 
 ARG FEDORA_VERSION
@@ -65,8 +65,8 @@ RUN set -euxo pipefail; \
     dnf -y install --exclude="${UNWANTED}" \
         @fonts @hardware-support plymouth-system-theme \
         glibc-all-langpacks google-noto-sans-fonts google-noto-emoji-fonts \
-        nautilus nautilus-python nautilus-my-computer nautilus-megasync \
-        sushi file-roller-nautilus seahorse-nautilus \
+        nemo nemo-compare nemo-preview nemo-fileroller nemo-seahorse nemo-search-helpers \
+        nemo-dropbox nemo-extensions \
         adw-gtk3-theme qt5ct qt6ct kate peazip-gtk3 pavucontrol alsa-utils \
         distrobox podman flatpak wget; \
     dnf clean all
