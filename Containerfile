@@ -76,8 +76,8 @@ RUN set -euxo pipefail; \
 #    libs they pulled in get replaced by the full ffmpeg.
 RUN set -euxo pipefail; \
     dnf -y install --allowerasing ffmpeg; \
-    dnf -y install @multimedia --setopt="install_weak_deps=False" --exclude=PackageKit-gstreamer-plugin; \
-    dnf -y group install sound-and-video; \
+    dnf -y install @multimedia --setopt="install_weak_deps=False" --exclude=PackageKit-gstreamer-plugin,libheif-freeworld; \
+    dnf -y group install sound-and-video --exclude=libheif-freeworld; \
     dnf -y install --allowerasing mesa-va-drivers-freeworld.i686 mesa-va-drivers-freeworld intel-media-driver libva-nvidia-driver libva-utils; \
     dnf -y install libdvdcss; \
     if rpm -q ffmpeg-free >/dev/null 2>&1; then echo "ffmpeg-free is still installed" >&2; exit 1; fi; \
