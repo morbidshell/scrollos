@@ -26,7 +26,7 @@ RUN set -euxo pipefail; \
         "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm" \
         "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_VERSION}.noarch.rpm"; \
     dnf -y install rpmfusion-free-release-tainted; \
-    for copr in yannmasoch/nautilus-my-computer lionheartp/Hyprland vertigo-red/bottles scottames/ghostty bieszczaders/kernel-cachyos-lto; do \
+    for copr in lionheartp/Hyprland vertigo-red/bottles scottames/ghostty bieszczaders/kernel-cachyos-lto; do \
         dnf -y copr enable "${copr}"; \
     done; \
     curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o "/etc/yum.repos.d/isv:BrowserWorks.repo" \
