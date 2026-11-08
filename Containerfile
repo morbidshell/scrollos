@@ -1,18 +1,23 @@
 # Fedora bootc + Niri + Noctalia, CachyOS LTO kernel, RPM Fusion codecs, gaming
 # apps, OpenSnitch, Windscribe, Waterfox.  x86_64 only.
 #
+#   GH_TOKEN=... bash scripts/fetch-rpms.sh     # OpenSnitch + Windscribe RPMs -> ./rpms
 #   sudo podman build -t fedora-niri-bootc .
-#   (pin external downloads: --build-arg OPENSNITCH_VERSION=1.8.0 --build-arg WINDSCRIBE_VERSION=...)
+#   (pin them: OPENSNITCH_VERSION=1.8.0 WINDSCRIBE_VERSION=2.24.13 bash scripts/fetch-rpms.sh)
 #
 # Steps are ordered by how often they change. Editing one re-runs it and everything
 # after it. Every dnf step ends in `dnf clean all` so its cache never lands in a layer.
 
 ARG FEDORA_VERSION=44
+
+# The RPMs that scripts/fetch-rpms.sh downloaded. Step 6 bind-mounts this stage, so the
+# files are used during the build but never stored in an image layer.
+FROM scratch AS rpms
+COPY rpms/ /
+
 FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 
 ARG FEDORA_VERSION
-ARG OPENSNITCH_VERSION=latest
-ARG WINDSCRIBE_VERSION=latest
 # niri recommends a starter kit that Noctalia and Ghostty replace (mako would also
 # compete with Noctalia for notifications). Excluded weak deps are skipped silently.
 ARG UNWANTED=alacritty,fuzzel,waybar,swaylock,mako,swaybg
@@ -74,6 +79,10 @@ RUN set -euxo pipefail; \
 
 # 5. Codecs (RPM Fusion "Multimedia on Fedora"). After the apps, so any ffmpeg-free
 #    libs they pulled in get replaced by the full ffmpeg.
+#    libheif-freeworld is deliberately left out. It pins the exact libheif version, RPM
+#    Fusion lags behind Fedora's updates, and the mismatch fails the whole transaction.
+#    HEIC photos still decode: Fedora's libheif-ffmpeg plugin (already in the image) runs
+#    on the full ffmpeg installed here. What is lost is only the HEIC *encoder*.
 RUN set -euxo pipefail; \
     dnf -y install --allowerasing ffmpeg; \
     dnf -y install @multimedia --setopt="install_weak_deps=False" --exclude=PackageKit-gstreamer-plugin,libheif-freeworld; \
@@ -84,9 +93,9 @@ RUN set -euxo pipefail; \
     dnf clean all
 
 
-# 6. OpenSnitch + Windscribe (GitHub release RPMs). "latest" is resolved through the
-#    /releases/latest redirect, which has no API rate limit. GitHub sometimes answers
-#    with a 504, so every curl here retries instead of failing the build.
+# 6. OpenSnitch + Windscribe, installed from the RPMs scripts/fetch-rpms.sh put in ./rpms.
+#    They are downloaded outside the build, through the authenticated GitHub API, because
+#    github.com's web endpoints kept answering 504 to unauthenticated requests from the runners.
 #    - The OpenSnitch daemon RPM's %post runs `systemctl start`, which fails during an
 #      image build and aborts the whole transaction. It only enables/starts the unit,
 #      so it is installed with scriptlets off and enabled in step 8.
@@ -94,22 +103,14 @@ RUN set -euxo pipefail; \
 #      (not carried across image updates). Anything landing there is moved to
 #      /usr/lib/opt and linked back at boot via tmpfiles.d.
 #    - The Windscribe RPM's signature is verified against Windscribe's published key.
-RUN set -euxo pipefail; \
-    cl="curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors"; \
-    latest() { local t; t="$(${cl} -I -o /dev/null -w '%{url_effective}' "https://github.com/$1/releases/latest")" || return 1; case "${t}" in */releases/tag/v*) echo "${t##*/v}" ;; *) echo "no release tag for $1, got: ${t}" >&2; return 1 ;; esac; }; \
-    os="${OPENSNITCH_VERSION}"; [ "${os}" != latest ] || os="$(latest evilsocket/opensnitch)"; \
-    ws="${WINDSCRIBE_VERSION}"; [ "${ws}" != latest ] || ws="$(latest Windscribe/Desktop-App)"; \
-    cd /tmp; \
-    ${cl} --fail-early \
-        -O "https://github.com/evilsocket/opensnitch/releases/download/v${os}/opensnitch-${os}-1.x86_64.rpm" \
-        -O "https://github.com/evilsocket/opensnitch/releases/download/v${os}/opensnitch-ui-${os}-1.noarch.rpm" \
-        -O "https://github.com/Windscribe/Desktop-App/releases/download/v${ws}/windscribe_${ws}_amd64_fedora.rpm" \
-        -O "https://windscribe.com/windscribe_linux_signing_key.pub"; \
+RUN --mount=type=bind,from=rpms,source=/,target=/tmp/rpms \
+    set -euxo pipefail; \
+    cd /tmp/rpms; \
     rpm --import windscribe_linux_signing_key.pub; \
-    rpmkeys --checksig "windscribe_${ws}_amd64_fedora.rpm" | tee /dev/stderr | grep -q 'signatures OK'; \
+    rpmkeys --checksig windscribe_*_amd64_fedora.rpm | tee /dev/stderr | grep -q 'signatures OK'; \
     [ ! -L /opt ] || mkdir -p /var/opt; \
-    dnf -y install --setopt=tsflags=noscripts "/tmp/opensnitch-${os}-1.x86_64.rpm"; \
-    dnf -y install "/tmp/opensnitch-ui-${os}-1.noarch.rpm" "/tmp/windscribe_${ws}_amd64_fedora.rpm"; \
+    dnf -y install --setopt=tsflags=noscripts ./opensnitch-[0-9]*.x86_64.rpm; \
+    dnf -y install ./opensnitch-ui-*.noarch.rpm ./windscribe_*_amd64_fedora.rpm; \
     if [ -L /opt ]; then \
         mkdir -p /usr/lib/opt; \
         for d in /var/opt/*; do \
@@ -119,7 +120,6 @@ RUN set -euxo pipefail; \
         done; \
     fi; \
     test -e /usr/lib/opt/windscribe || test -e /opt/windscribe; \
-    rm -f /tmp/*.rpm /tmp/*.pub; \
     dnf clean all
 
 
