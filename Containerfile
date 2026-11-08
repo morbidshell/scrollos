@@ -29,7 +29,7 @@ RUN set -euxo pipefail; \
     for copr in yannmasoch/nautilus-my-computer lionheartp/Hyprland vertigo-red/bottles scottames/ghostty bieszczaders/kernel-cachyos-lto; do \
         dnf -y copr enable "${copr}"; \
     done; \
-    curl -fsSL -o "/etc/yum.repos.d/isv:BrowserWorks.repo" \
+    curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o "/etc/yum.repos.d/isv:BrowserWorks.repo" \
         "https://download.opensuse.org/repositories/isv:/BrowserWorks/Fedora_${FEDORA_VERSION}/isv:BrowserWorks.repo"; \
     dnf clean all
 
@@ -85,7 +85,8 @@ RUN set -euxo pipefail; \
 
 
 # 6. OpenSnitch + Windscribe (GitHub release RPMs). "latest" is resolved through the
-#    /releases/latest redirect, which has no API rate limit.
+#    /releases/latest redirect, which has no API rate limit. GitHub sometimes answers
+#    with a 504, so every curl here retries instead of failing the build.
 #    - The OpenSnitch daemon RPM's %post runs `systemctl start`, which fails during an
 #      image build and aborts the whole transaction. It only enables/starts the unit,
 #      so it is installed with scriptlets off and enabled in step 8.
@@ -94,11 +95,12 @@ RUN set -euxo pipefail; \
 #      /usr/lib/opt and linked back at boot via tmpfiles.d.
 #    - The Windscribe RPM's signature is verified against Windscribe's published key.
 RUN set -euxo pipefail; \
-    latest() { local t; t="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$1/releases/latest")"; echo "${t##*/v}"; }; \
+    cl="curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors"; \
+    latest() { local t; t="$(${cl} -I -o /dev/null -w '%{url_effective}' "https://github.com/$1/releases/latest")" || return 1; case "${t}" in */releases/tag/v*) echo "${t##*/v}" ;; *) echo "no release tag for $1, got: ${t}" >&2; return 1 ;; esac; }; \
     os="${OPENSNITCH_VERSION}"; [ "${os}" != latest ] || os="$(latest evilsocket/opensnitch)"; \
     ws="${WINDSCRIBE_VERSION}"; [ "${ws}" != latest ] || ws="$(latest Windscribe/Desktop-App)"; \
     cd /tmp; \
-    curl -fsSL --fail-early \
+    ${cl} --fail-early \
         -O "https://github.com/evilsocket/opensnitch/releases/download/v${os}/opensnitch-${os}-1.x86_64.rpm" \
         -O "https://github.com/evilsocket/opensnitch/releases/download/v${os}/opensnitch-ui-${os}-1.noarch.rpm" \
         -O "https://github.com/Windscribe/Desktop-App/releases/download/v${ws}/windscribe_${ws}_amd64_fedora.rpm" \
