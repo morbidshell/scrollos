@@ -23,7 +23,7 @@ ARG FEDORA_VERSION
 ARG UNWANTED=alacritty,fuzzel,waybar,swaylock,mako,swaybg
 
 
-# 1. Repositories: RPM Fusion (+ tainted for libdvdcss), COPRs, Waterfox.
+# 1. Repositories: RPM Fusion (+ tainted for libdvdcss) and the COPRs.
 RUN set -euxo pipefail; \
     [ "$(uname -m)" = x86_64 ] || { echo "x86_64 only" >&2; exit 1; }; \
     [ "$(rpm -E %fedora)" = "${FEDORA_VERSION}" ] || { echo "FEDORA_VERSION does not match the base image" >&2; exit 1; }; \
@@ -34,8 +34,6 @@ RUN set -euxo pipefail; \
     for copr in lionheartp/Hyprland vertigo-red/bottles scottames/ghostty bieszczaders/kernel-cachyos-lto; do \
         dnf -y copr enable "${copr}"; \
     done; \
-    curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o "/etc/yum.repos.d/isv:BrowserWorks.repo" \
-        "https://download.opensuse.org/repositories/isv:/BrowserWorks/Fedora_${FEDORA_VERSION}/isv:BrowserWorks.repo"; \
     dnf clean all
 
 
@@ -57,7 +55,7 @@ RUN set -euxo pipefail; \
         niri noctalia xwayland-satellite \
         xdg-desktop-portal-gnome xdg-desktop-portal-gtk \
         greetd greetd-selinux noctalia-greeter-git \
-        steam lutris bottles ghostty waterfox mesa-libGLU.x86_64 mesa-libGLU.i686 \
+        steam lutris bottles ghostty mesa-libGLU.x86_64 mesa-libGLU.i686 \
         pipewire pipewire-pulseaudio pipewire-alsa wireplumber \
         NetworkManager-wifi bluez power-profiles-daemon upower polkit \
         gnome-keyring gnome-keyring-pam xdg-user-dirs xdg-utils \
@@ -74,6 +72,17 @@ RUN set -euxo pipefail; \
         nemo-dropbox nemo-extensions \
         adw-gtk3-theme qt5ct qt6ct kate peazip-gtk3 pavucontrol alsa-utils \
         distrobox podman flatpak wget; \
+    dnf clean all
+
+
+# 4b. Waterfox, from its official repo (isv:BrowserWorks on download.opensuse.org). The repo
+#     is added only here, not in step 1: dnf downloads the package list of every enabled
+#     repo in every step, so an outage of this one repo would otherwise break (and slow
+#     down) all the steps before it. Here a failure only repeats this small step.
+RUN set -euxo pipefail; \
+    curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o "/etc/yum.repos.d/isv:BrowserWorks.repo" \
+        "https://download.opensuse.org/repositories/isv:/BrowserWorks/Fedora_${FEDORA_VERSION}/isv:BrowserWorks.repo"; \
+    dnf -y install waterfox; \
     dnf clean all
 
 
