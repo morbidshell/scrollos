@@ -1,8 +1,8 @@
-# Fedora bootc + Niri + Noctalia, CachyOS LTO kernel, RPM Fusion codecs, gaming
+# Fedora bootc + KDE Plasma, CachyOS LTO kernel, RPM Fusion codecs, gaming
 # apps, OpenSnitch, Windscribe, Waterfox.  x86_64 only.
 #
 #   GH_TOKEN=... bash scripts/fetch-rpms.sh     # OpenSnitch + Windscribe RPMs -> ./rpms
-#   sudo podman build -t fedora-niri-bootc .
+#   sudo podman build -t fedora-kde-bootc .
 #   (pin them: OPENSNITCH_VERSION=1.8.0 WINDSCRIBE_VERSION=2.24.13 bash scripts/fetch-rpms.sh)
 #
 # Steps are ordered by how often they change. Editing one re-runs it and everything
@@ -20,9 +20,6 @@ COPY rpms/ /
 FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 
 ARG FEDORA_VERSION
-# niri recommends a starter kit that Noctalia and Ghostty replace (mako would also
-# compete with Noctalia for notifications). Excluded weak deps are skipped silently.
-ARG UNWANTED=alacritty,fuzzel,waybar,swaylock,mako,swaybg
 
 
 # 1. Repositories: RPM Fusion (+ tainted for libdvdcss) and the COPRs.
@@ -34,7 +31,7 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
         "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm" \
         "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_VERSION}.noarch.rpm"; \
     dnf -y install rpmfusion-free-release-tainted; \
-    for copr in lionheartp/Hyprland vertigo-red/bottles scottames/ghostty bieszczaders/kernel-cachyos-lto; do \
+    for copr in vertigo-red/bottles scottames/ghostty bieszczaders/kernel-cachyos-lto; do \
         dnf -y copr enable "${copr}"; \
     done
 
@@ -52,27 +49,28 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
 
 
 # 3. Desktop core + apps (big, keep this list stable; it holds most of the download).
+#    @kde-desktop is Fedora's basic Plasma group: Plasma, KWin, Dolphin, Konsole, Discover,
+#    Plasma Login Manager and Plasma Setup (the fuller @kde-desktop-environment would add
+#    the whole KDE apps suite and Kontact). It also brings the KDE portal and KWallet, which
+#    replaces gnome-keyring as the Secret Service; pam-kwallet (Fedora's name for the PAM
+#    module, not "kwallet-pam") is listed so the login-time unlock is explicit.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     set -euxo pipefail; \
-    dnf -y install --exclude="${UNWANTED}" \
-        niri noctalia xwayland-satellite \
-        xdg-desktop-portal-gnome xdg-desktop-portal-gtk \
-        greetd greetd-selinux noctalia-greeter-git \
+    dnf -y install \
+        @kde-desktop xdg-desktop-portal-kde xdg-desktop-portal-gtk \
         steam lutris bottles ghostty mesa-libGLU.x86_64 mesa-libGLU.i686 \
         pipewire pipewire-pulseaudio pipewire-alsa wireplumber \
         NetworkManager-wifi bluez power-profiles-daemon upower polkit \
-        gnome-keyring gnome-keyring-pam xdg-user-dirs xdg-utils \
+        pam-kwallet xdg-user-dirs xdg-utils \
         linux-firmware alsa-firmware alsa-sof-firmware dracut mesa-dri-drivers mesa-vulkan-drivers
 
 
 # 4. Extras (the list you tweak often).
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     set -euxo pipefail; \
-    dnf -y install --exclude="${UNWANTED}" \
+    dnf -y install \
         @fonts @hardware-support plymouth-system-theme \
         glibc-all-langpacks google-noto-sans-fonts google-noto-emoji-fonts \
-        nemo nemo-compare nemo-preview nemo-fileroller nemo-seahorse nemo-search-helpers \
-        nemo-dropbox nemo-extensions \
         adw-gtk3-theme qt5ct qt6ct kate peazip-gtk3 pavucontrol alsa-utils \
         distrobox podman flatpak wget
 
@@ -148,14 +146,44 @@ RUN set -euxo pipefail; \
     test -s "/usr/lib/modules/${kver}/initramfs.img"
 
 
-# 8. Image config from files/ (greetd -> noctalia-greeter, /etc/niri/config.kdl, the
-#    greeter's SELinux label, the Flathub first-boot unit), services, cleanup, lint.
-#    flatpak-add-fedora-repos.service (Fedora's own remote) is masked in favour of Flathub.
+# 8. Image config from files/ (the Flathub first-boot unit), Plasma defaults, services,
+#    cleanup, lint. flatpak-add-fedora-repos.service (Fedora's own remote) is masked in
+#    favour of Flathub.
 COPY files/ /
 
+# 8a. Plasma defaults.
+#    - Global Menu: Plasma's default panel has none. KDE ships a layout template for a thin
+#      top panel that holds one (the "Application Menu Bar" under Add Panel), so the layout
+#      scripts that build a brand-new profile's panels are extended to load it. Profiles that
+#      already exist are not touched. Qt/KDE apps (Dolphin, Kate, Konsole...) then use it.
+#      appmenu-gtk-module is deliberately NOT installed: Plasma on Wayland cannot show GTK
+#      menus in the Global Menu, so it would only risk GTK3 apps losing their menu bar.
+#    - Plasma Setup, the first-boot wizard that creates a user account, runs before the login
+#      manager unless /etc/plasma-setup-done exists. Users here come from the installer
+#      config (or already exist after `bootc switch`), so it is marked done. Remove that
+#      line to get the wizard back on fresh installs.
 RUN set -euxo pipefail; \
-    niri validate -c /etc/niri/config.kdl; \
-    systemctl enable greetd NetworkManager bluetooth power-profiles-daemon opensnitch windscribe-helper flatpak-add-flathub; \
+    test -s /usr/share/plasma/layout-templates/org.kde.plasma.desktop.appmenubar/contents/layout.js \
+        || { echo "Plasma's appmenubar layout template is missing" >&2; exit 1; }; \
+    patched=0; \
+    for f in /usr/share/plasma/shells/org.kde.plasma.desktop/contents/layout.js \
+             /usr/share/plasma/look-and-feel/*/contents/layouts/org.kde.plasma.desktop-layout.js; do \
+        [ -f "${f}" ] || continue; \
+        printf '\n// Added by this image: Global Menu panel.\nloadTemplate("org.kde.plasma.desktop.appmenubar");\n' >> "${f}"; \
+        patched=$((patched + 1)); \
+    done; \
+    [ "${patched}" -gt 0 ] || { echo "no Plasma default layout script found to extend" >&2; exit 1; }; \
+    touch /etc/plasma-setup-done
+
+# 8b. Services, cleanup, lint. Fedora 44's KDE uses Plasma Login Manager (plasmalogin),
+#     not SDDM; the group installs it but leaves it disabled.
+RUN set -euxo pipefail; \
+    test -f /usr/share/wayland-sessions/plasma.desktop \
+        || { echo "no Plasma Wayland session installed" >&2; exit 1; }; \
+    test -f /usr/lib/systemd/system/plasmalogin.service \
+        || { echo "Plasma Login Manager is not installed" >&2; exit 1; }; \
+    systemctl enable --force plasmalogin; \
+    systemctl enable NetworkManager bluetooth power-profiles-daemon opensnitch windscribe-helper flatpak-add-flathub; \
     systemctl mask flatpak-add-fedora-repos.service; \
     systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service; \
     systemctl set-default graphical.target; \
